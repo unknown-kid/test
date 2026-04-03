@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REMOTE_NAME="${REMOTE_NAME:-origin}"
-REMOTE_URL="${REMOTE_URL:-https://github.com/unknown-kid/test}"
+REMOTE_URL="${REMOTE_URL:-https://github.com/unknown-kid/test.git}"
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 GIT_USER_NAME="${GIT_USER_NAME:-unknown-kid}"
 GIT_USER_EMAIL="${GIT_USER_EMAIL:-379550761@qq.com}"
