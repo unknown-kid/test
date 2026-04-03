@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-.env}"
-PROJECT_NAME="${DOCKER_COMPOSE_PROJECT:-paperapp}"
 BACKUP_DIR="${BACKUP_DIR:-$ROOT_DIR/deploy/backups}"
 
 if [[ -f "$ROOT_DIR/$ENV_FILE" ]]; then
@@ -14,10 +13,31 @@ if [[ -f "$ROOT_DIR/$ENV_FILE" ]]; then
   set +a
 fi
 
+PROJECT_NAME="${DOCKER_COMPOSE_PROJECT:-paperapp}"
+
 mkdir -p "$BACKUP_DIR"
 
+compose_bin() {
+  if docker compose version >/dev/null 2>&1; then
+    echo "docker compose"
+    return
+  fi
+  if docker-compose version >/dev/null 2>&1; then
+    echo "docker-compose"
+    return
+  fi
+  echo "Docker Compose is not available." >&2
+  exit 1
+}
+
 compose() {
-  docker compose --env-file "$ENV_FILE" -f "$ROOT_DIR/$COMPOSE_FILE" -p "$PROJECT_NAME" "$@"
+  local cmd
+  cmd="$(compose_bin)"
+  if [[ "$cmd" == "docker compose" ]]; then
+    docker compose -f "$ROOT_DIR/$COMPOSE_FILE" -p "$PROJECT_NAME" "$@"
+    return
+  fi
+  docker-compose -f "$ROOT_DIR/$COMPOSE_FILE" -p "$PROJECT_NAME" "$@"
 }
 
 require_file() {
