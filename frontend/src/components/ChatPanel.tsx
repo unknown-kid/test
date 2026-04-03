@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { List, Input, Button, Space, Drawer, Popconfirm, Switch, Typography, message } from 'antd'
-import { PlusOutlined, DeleteOutlined, SendOutlined, MenuOutlined } from '@ant-design/icons'
+import { List, Input, Button, Space, Drawer, Popconfirm, Switch, Typography, message, Spin } from 'antd'
+import { PlusOutlined, DeleteOutlined, SendOutlined, MenuOutlined, LoadingOutlined } from '@ant-design/icons'
 import { chatApi, streamChat, type ChatSession, type ChatMessage } from '../api/chat'
 import SafeMarkdown from './SafeMarkdown'
 
 const { Text } = Typography
 const { TextArea } = Input
+const streamingIcon = <LoadingOutlined style={{ fontSize: 16 }} spin />
 
 interface Props {
   paperId: string
@@ -265,15 +266,40 @@ export default function ChatPanel({ paperId, sourceType, sourceText, askAiReques
         ))}
         {streaming && streamContent && (
           <div style={{ marginBottom: 12, padding: 8, borderRadius: 6, background: '#f6ffed' }}>
-            <Text type="secondary" style={{ fontSize: 11 }}>AI</Text>
+            <Space size={6} align="center">
+              <Text type="secondary" style={{ fontSize: 11 }}>AI</Text>
+              <Spin indicator={streamingIcon} size="small" />
+              <Text type="secondary" style={{ fontSize: 11 }}>正在生成回复</Text>
+            </Space>
             <div style={{ marginTop: 4 }} className="md-content">
               <SafeMarkdown content={streamContent} />
             </div>
           </div>
         )}
+        {streaming && !streamContent && (
+          <div style={{ marginBottom: 12, padding: 12, borderRadius: 6, background: '#f6ffed' }}>
+            <Space size={8} align="center">
+              <Spin indicator={streamingIcon} size="small" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Text type="secondary" style={{ fontSize: 11 }}>AI</Text>
+                <Text style={{ fontSize: 13 }}>正在检索论文内容并生成回复...</Text>
+              </div>
+            </Space>
+          </div>
+        )}
       </div>
 
       <div style={{ padding: '8px 0' }}>
+        {streaming && (
+          <div style={{ marginBottom: 8 }}>
+            <Space size={8} align="center">
+              <Spin indicator={streamingIcon} size="small" />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                AI 正在思考中，请稍候
+              </Text>
+            </Space>
+          </div>
+        )}
         <Space.Compact style={{ width: '100%' }}>
           <TextArea
             rows={2}
