@@ -1,0 +1,59 @@
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+html.admin-paper-detail-lock,
+body.admin-paper-detail-lock {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.admin-paper-detail-lock #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+.paper-detail-page {
+  width: 100%;
+}
+
+html.paper-detail-lock,
+body.paper-detail-lock {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.paper-detail-lock #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+.admin-paper-detail-page {
+  max-width: 100%;
+}
+
+.admin-paper-detail-side {
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.admin-paper-detail-side .ant-descriptions-item-content,
+.admin-paper-detail-side .ant-descriptions-item-label,
+.admin-paper-detail-side .ant-typography,
+.admin-paper-detail-side .md-content {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.admin-paper-detail-side .md-content pre,
+.admin-paper-detail-side .md-content table,
+.admin-paper-detail-side .md-content .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+}
