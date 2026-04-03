@@ -7,6 +7,7 @@
 - Allow safe Git-based upgrades without overwriting runtime data.
 - Support rollback to a previous Git tag or commit.
 
+
 ## Layout
 
 - Code repository: this project directory.
