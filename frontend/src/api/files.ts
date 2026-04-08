@@ -81,6 +81,12 @@ export const filesApi = {
     })
   },
 
+  uploadPapersByUrl: (urls: string[], zone: string, folder_id?: string) =>
+    client.post('/papers/upload/by-url', { urls }, {
+      params: { zone, folder_id },
+      timeout: 0,
+    }),
+
   getPaper: (paperId: string) =>
     client.get<PaperInfo>(`/papers/${paperId}`),
 

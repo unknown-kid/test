@@ -1,4 +1,5 @@
 import json
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, text
@@ -12,6 +13,7 @@ from app.schemas.paper import PaperInfo, PaperMove, PaperCopy, PaperBatchMove, P
 from app.services.paper_service import (
     create_paper, delete_paper, move_paper, get_paper, batch_delete_papers,
 )
+from app.services.url_upload_service import download_pdf_from_url
 from app.services.minio_service import get_pdf
 from app.services.file_service import get_folder_or_raise, check_folder_permission, get_descendant_paper_ids
 from app.services.auth_service import decode_token
@@ -19,6 +21,10 @@ from app.tasks.processing import process_paper
 from app.tasks.deep_copy import task_deep_copy
 
 router = APIRouter(prefix="/api/papers", tags=["papers"])
+
+
+class PaperUrlUploadRequest(BaseModel):
+    urls: list[str] = Field(default_factory=list)
 
 
 @router.post("/upload", response_model=PaperInfo)
@@ -69,6 +75,46 @@ async def upload_papers_batch(
             results.append({"filename": f.filename, "paper_id": paper.id, "status": "success"})
         except ValueError as e:
             results.append({"filename": f.filename, "status": "failed", "error": str(e)})
+    return {"results": results}
+
+
+@router.post("/upload/by-url")
+async def upload_papers_by_url(
+    req: PaperUrlUploadRequest,
+    folder_id: str | None = Query(None),
+    zone: str = Query("personal"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if user.role == "user" and zone == "shared":
+        raise HTTPException(status_code=403, detail="普通用户不能上传到共享区")
+    if user.role == "admin" and zone != "shared":
+        raise HTTPException(status_code=403, detail="管理员只能上传到共享区")
+
+    urls = [str(item).strip() for item in (req.urls or []) if str(item).strip()]
+    if not urls:
+        raise HTTPException(status_code=400, detail="请至少提供一个PDF链接")
+
+    uploaded_by = user.id if user.role == "user" else None
+    results = []
+
+    for raw_url in urls:
+        try:
+            data, filename, final_url = await download_pdf_from_url(raw_url)
+            paper = await create_paper(db, data, filename, folder_id, zone, uploaded_by)
+            process_paper.delay(paper.id, paper.minio_object_key, uploaded_by, zone)
+            results.append({
+                "url": raw_url,
+                "final_url": final_url,
+                "filename": filename,
+                "paper_id": paper.id,
+                "status": "success",
+            })
+        except ValueError as e:
+            results.append({"url": raw_url, "status": "failed", "error": str(e)})
+        except Exception:
+            results.append({"url": raw_url, "status": "failed", "error": "下载或上传失败"})
+
     return {"results": results}
 
 

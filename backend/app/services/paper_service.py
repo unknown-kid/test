@@ -1,5 +1,6 @@
 import logging
 import uuid
+import re
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.paper import Paper
@@ -15,6 +16,22 @@ from app.services.file_service import (
 logger = logging.getLogger(__name__)
 
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+PDF_SIGNATURE = b"%PDF-"
+SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def is_pdf_bytes(file_data: bytes) -> bool:
+    return bool(file_data) and file_data.startswith(PDF_SIGNATURE)
+
+
+def normalize_pdf_filename(filename: str) -> str:
+    raw = (filename or "").strip()
+    if not raw:
+        raw = "untitled.pdf"
+    sanitized = SAFE_FILENAME_RE.sub("_", raw).strip("._") or "untitled.pdf"
+    if not sanitized.lower().endswith(".pdf"):
+        sanitized = f"{sanitized}.pdf"
+    return sanitized
 
 
 async def create_paper(
@@ -23,8 +40,9 @@ async def create_paper(
 ) -> Paper:
     if len(file_data) > MAX_FILE_SIZE:
         raise ValueError("文件大小不能超过100MB")
-    if not filename.lower().endswith(".pdf"):
-        raise ValueError("仅支持PDF文件")
+    if not is_pdf_bytes(file_data):
+        raise ValueError("仅支持有效的PDF文件")
+    filename = normalize_pdf_filename(filename)
 
     paper_id = str(uuid.uuid4())
     if zone == "shared":
