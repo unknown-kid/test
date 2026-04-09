@@ -4,6 +4,7 @@ from app.dependencies import require_user
 from app.models.user import User
 from app.services.llm_service import get_model_config_sync
 import httpx
+from app.utils.http_clients import build_async_httpx_client
 
 router = APIRouter(prefix="/api/translate", tags=["translate"])
 
@@ -40,7 +41,7 @@ async def translate_text(
         if not api_key:
             raise HTTPException(status_code=500, detail="翻译模型未配置")
         url = api_url.rstrip("/") if api_url else "https://api-free.deepl.com/v2/translate"
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with build_async_httpx_client(timeout=30) as client:
             resp = await client.post(
                 url,
                 headers={"Authorization": f"DeepL-Auth-Key {api_key}", "Content-Type": "application/json"},
@@ -59,7 +60,7 @@ async def translate_text(
 
         url = _normalize_chat_completion_url(api_url)
 
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with build_async_httpx_client(timeout=30) as client:
             resp = await client.post(
                 url,
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},

@@ -1,9 +1,11 @@
 import logging
 import uuid
+import litellm
 from app.tasks.celery_app import celery_app
 from app.services.llm_service import get_model_config_sync, get_user_chat_model
 from app.utils.websocket_manager import update_paper_status_sync
 from app.utils.concurrency import get_model_limiter, get_step_limiter, get_worker_limiter
+from app.utils.http_clients import build_async_httpx_client, build_sync_httpx_client
 from app.utils.paper_payload import get_or_extract_paper_text
 from sqlalchemy import create_engine, text
 from app.config import get_settings
@@ -12,12 +14,20 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
+def _configure_litellm_proxy_disabled() -> None:
+    if litellm.client_session is None or getattr(litellm.client_session, "is_closed", False):
+        litellm.client_session = build_sync_httpx_client(follow_redirects=True)
+    if litellm.aclient_session is None or getattr(litellm.aclient_session, "is_closed", False):
+        litellm.aclient_session = build_async_httpx_client(follow_redirects=True)
+
+
 def _build_crewai_llm(api_url: str, api_key: str, model_name: str):
     """Build a CrewAI-compatible LLM instance using OpenAI-compatible API."""
     from crewai import LLM
     base_url = api_url.rstrip("/")
     if base_url.endswith("/chat/completions"):
         base_url = base_url[: -len("/chat/completions")]
+    _configure_litellm_proxy_disabled()
     return LLM(
         model=f"openai/{model_name}",
         base_url=base_url,

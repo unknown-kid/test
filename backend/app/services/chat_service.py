@@ -15,6 +15,7 @@ from app.services.paper_service import get_accessible_paper_for_user
 from app.config import get_settings
 from app.utils.model_monitor import record_model_request
 from app.utils.chunking import chunk_text
+from app.utils.http_clients import build_async_httpx_client
 from app.utils.paper_payload import get_or_extract_paper_text
 
 logger = logging.getLogger(__name__)
@@ -419,7 +420,7 @@ async def stream_chat(
     full_response = ""
     request_recorded = False
     try:
-        async with httpx.AsyncClient(timeout=120) as http_client:
+        async with build_async_httpx_client(timeout=120) as http_client:
             async with http_client.stream(
                 "POST", url,
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},

@@ -3,6 +3,7 @@ import time
 import httpx
 from app.utils.concurrency import get_model_limiter
 from app.utils.model_monitor import record_model_request_sync
+from app.utils.http_clients import build_sync_httpx_client
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ def call_llm_sync(
             write=CHAT_WRITE_TIMEOUT,
             pool=CHAT_POOL_TIMEOUT,
         )
-        with httpx.Client(timeout=timeout) as client:
+        with build_sync_httpx_client(timeout=timeout) as client:
             for attempt in range(1, CHAT_MAX_ATTEMPTS + 1):
                 try:
                     resp = client.post(

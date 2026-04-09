@@ -3,6 +3,7 @@ import time
 import httpx
 from app.utils.concurrency import get_model_limiter
 from app.utils.model_monitor import record_model_request_sync
+from app.utils.http_clients import build_sync_httpx_client
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ def embed_text_sync(
             write=EMBED_WRITE_TIMEOUT,
             pool=EMBED_POOL_TIMEOUT,
         )
-        with httpx.Client(timeout=timeout) as client:
+        with build_sync_httpx_client(timeout=timeout) as client:
             for attempt in range(1, EMBED_MAX_ATTEMPTS + 1):
                 try:
                     resp = client.post(
@@ -88,7 +89,7 @@ def embed_texts_batch_sync(
             write=EMBED_WRITE_TIMEOUT,
             pool=EMBED_POOL_TIMEOUT,
         )
-        with httpx.Client(timeout=timeout) as client:
+        with build_sync_httpx_client(timeout=timeout) as client:
             for attempt in range(1, EMBED_MAX_ATTEMPTS + 1):
                 try:
                     resp = client.post(

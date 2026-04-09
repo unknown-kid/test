@@ -3,6 +3,7 @@ from app.dependencies import require_admin
 from app.models.user import User
 from app.schemas.config import ModelTestRequest
 import httpx
+from app.utils.http_clients import build_async_httpx_client
 
 router = APIRouter(prefix="/api/admin/model-test", tags=["model-test"])
 
@@ -23,7 +24,7 @@ async def test_model_connection(
     try:
         if req.model_type == "chat":
             url = _normalize_chat_completion_url(req.api_url)
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with build_async_httpx_client(timeout=60) as client:
                 resp = await client.post(
                     url,
                     headers={"Authorization": f"Bearer {req.api_key}", "Content-Type": "application/json"},
@@ -52,7 +53,7 @@ async def test_model_connection(
             url = req.api_url.rstrip("/")
             if not url.endswith("/embeddings"):
                 url += "/embeddings"
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with build_async_httpx_client(timeout=30) as client:
                 resp = await client.post(
                     url,
                     headers={"Authorization": f"Bearer {req.api_key}", "Content-Type": "application/json"},
@@ -70,7 +71,7 @@ async def test_model_connection(
         elif req.model_type == "translate":
             if req.translate_type == "deepl":
                 url = req.api_url.rstrip("/") if req.api_url else "https://api-free.deepl.com/v2/translate"
-                async with httpx.AsyncClient(timeout=30) as client:
+                async with build_async_httpx_client(timeout=30) as client:
                     resp = await client.post(
                         url,
                         headers={"Authorization": f"DeepL-Auth-Key {req.api_key}", "Content-Type": "application/json"},
@@ -83,7 +84,7 @@ async def test_model_connection(
                     return {"success": True, "message": f"连接成功，翻译结果: {translated}"}
             else:
                 url = _normalize_chat_completion_url(req.api_url)
-                async with httpx.AsyncClient(timeout=30) as client:
+                async with build_async_httpx_client(timeout=30) as client:
                     resp = await client.post(
                         url,
                         headers={"Authorization": f"Bearer {req.api_key}", "Content-Type": "application/json"},
