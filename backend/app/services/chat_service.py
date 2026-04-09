@@ -93,6 +93,58 @@ def _sanitize_stream_text(text: str) -> str:
     return OPENROUTER_PROCESSING_RE.sub("", text)
 
 
+def _dedupe_stream_chunk(existing_text: str, incoming_text: str) -> str:
+    if not incoming_text:
+        return ""
+    if not existing_text:
+        return incoming_text
+    if incoming_text.startswith(existing_text):
+        return incoming_text[len(existing_text):]
+    if existing_text.endswith(incoming_text):
+        return ""
+
+    max_overlap = min(len(existing_text), len(incoming_text), 4000)
+    for overlap in range(max_overlap, 0, -1):
+        if existing_text.endswith(incoming_text[:overlap]):
+            return incoming_text[overlap:]
+    return incoming_text
+
+
+def _iter_sse_payloads(raw_chunk: str) -> tuple[list[str], str]:
+    payloads: list[str] = []
+    events = raw_chunk.split("\n\n")
+    remainder = events.pop() if raw_chunk and not raw_chunk.endswith("\n\n") else ""
+
+    for event in events:
+        data_lines: list[str] = []
+        for raw_line in event.splitlines():
+            line = raw_line.rstrip("\r")
+            if not line:
+                continue
+            if line.startswith(":"):
+                continue
+            if line.lower().startswith("event:"):
+                continue
+            if line.startswith("data:"):
+                data_lines.append(line[5:].lstrip())
+            else:
+                data_lines.append(line)
+        payload = "\n".join(part for part in data_lines if part)
+        if payload:
+            payloads.append(payload)
+
+    return payloads, remainder
+
+
+def _decode_stream_payload(payload: str, full_response: str) -> str:
+    try:
+        chunk_data = json.loads(payload)
+        content = _sanitize_stream_text(_extract_stream_content(chunk_data))
+    except json.JSONDecodeError:
+        content = _sanitize_stream_text(payload)
+    return _dedupe_stream_chunk(full_response, content)
+
+
 def _get_local_chunks(paper_id: str) -> list[str]:
     configs = get_model_config_sync()
     chunk_size = int(configs.get("chunk_size", "3000"))
@@ -435,45 +487,59 @@ async def stream_chat(
                     return
 
                 done_sent = False
-                async for line in response.aiter_lines():
-                    if not line:
+                sse_buffer = ""
+                async for raw_chunk in response.aiter_text():
+                    if not raw_chunk:
                         continue
-                    stripped = line.strip()
-                    if not stripped:
-                        continue
+                    sse_buffer += raw_chunk
+                    payloads, sse_buffer = _iter_sse_payloads(sse_buffer)
+                    for payload in payloads:
+                        payload = payload.strip()
+                        if not payload:
+                            continue
 
-                    # Ignore upstream SSE protocol noise lines (e.g. ": OPENROUTER PROCESSING")
-                    if stripped.startswith(":"):
-                        continue
-                    if stripped.lower().startswith("event:"):
-                        continue
+                        if payload == "[DONE]":
+                            yield "data: [DONE]\n\n"
+                            done_sent = True
+                            break
 
-                    payload = stripped[5:].strip() if stripped.startswith("data:") else stripped
-                    if not payload:
-                        continue
+                        if payload.startswith("[ERROR]"):
+                            yield f"data: {payload}\n\n"
+                            return
 
-                    if payload == "[DONE]":
-                        yield "data: [DONE]\n\n"
-                        done_sent = True
-                        break
+                        if payload.startswith("[WARNING]"):
+                            yield f"data: {payload}\n\n"
+                            continue
 
-                    if payload.startswith("[ERROR]"):
-                        yield f"data: {payload}\n\n"
-                        return
-
-                    if payload.startswith("[WARNING]"):
-                        yield f"data: {payload}\n\n"
-                        continue
-
-                    try:
-                        chunk_data = json.loads(payload)
-                        content = _sanitize_stream_text(_extract_stream_content(chunk_data))
+                        content = _decode_stream_payload(payload, full_response)
                         if content:
                             full_response += content
                             yield f"data: {json.dumps({'content': content})}\n\n"
-                    except json.JSONDecodeError:
-                        # Fallback for non-SSE plain text chunks
-                        content = _sanitize_stream_text(payload)
+
+                    if done_sent:
+                        break
+
+                if sse_buffer and not done_sent:
+                    payloads, _ = _iter_sse_payloads(sse_buffer + "\n\n")
+                    for payload in payloads:
+                        payload = payload.strip()
+                        if not payload:
+                            continue
+
+                        if payload == "[DONE]":
+                            yield "data: [DONE]\n\n"
+                            done_sent = True
+                            break
+
+                        if payload.startswith("[ERROR]"):
+                            yield f"data: {payload}\n\n"
+                            return
+
+                        if payload.startswith("[WARNING]"):
+                            yield f"data: {payload}\n\n"
+                            continue
+
+                        content = _decode_stream_payload(payload, full_response)
                         if content:
                             full_response += content
                             yield f"data: {json.dumps({'content': content})}\n\n"
