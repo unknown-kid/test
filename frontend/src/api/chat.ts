@@ -153,22 +153,23 @@ export function streamChat(
     let finished = false
 
     const handleData = (data: string) => {
-      const payload = data.trim()
-      if (!payload) return
+      const payload = data.replace(/\r$/, '')
+      const controlPayload = payload.trim()
+      if (!controlPayload) return
 
-      if (payload === '[DONE]') {
+      if (controlPayload === '[DONE]') {
         finished = true
         onDone()
         return
       }
-      if (payload.startsWith('[ERROR]')) {
-        const msg = payload.replace(/^\[ERROR\]\s*/, '') || '聊天失败'
+      if (controlPayload.startsWith('[ERROR]')) {
+        const msg = controlPayload.replace(/^\[ERROR\]\s*/, '') || '聊天失败'
         finished = true
         onError(msg)
         return
       }
-      if (payload.startsWith('[WARNING]')) {
-        const msg = payload.replace(/^\[WARNING\]\s*/, '')
+      if (controlPayload.startsWith('[WARNING]')) {
+        const msg = controlPayload.replace(/^\[WARNING\]\s*/, '')
         onChunk(`\n\n> ${msg}\n\n`)
         return
       }

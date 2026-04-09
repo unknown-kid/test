@@ -20,7 +20,6 @@ from app.utils.paper_payload import get_or_extract_paper_text
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
-OPENROUTER_PROCESSING_RE = re.compile(r":?\s*OPENROUTER PROCESSING\s*", re.IGNORECASE)
 
 
 def _extract_text(value) -> str:
@@ -88,9 +87,7 @@ def _extract_error_message(raw: str) -> str:
 
 
 def _sanitize_stream_text(text: str) -> str:
-    if not text:
-        return ""
-    return OPENROUTER_PROCESSING_RE.sub("", text)
+    return text or ""
 
 
 def _dedupe_stream_chunk(existing_text: str, incoming_text: str) -> str:
@@ -126,7 +123,7 @@ def _iter_sse_payloads(raw_chunk: str) -> tuple[list[str], str]:
             if line.lower().startswith("event:"):
                 continue
             if line.startswith("data:"):
-                data_lines.append(line[5:].lstrip())
+                data_lines.append(line[6:] if line.startswith("data: ") else line[5:])
             else:
                 data_lines.append(line)
         payload = "\n".join(part for part in data_lines if part)
@@ -494,21 +491,21 @@ async def stream_chat(
                     sse_buffer += raw_chunk
                     payloads, sse_buffer = _iter_sse_payloads(sse_buffer)
                     for payload in payloads:
-                        payload = payload.strip()
-                        if not payload:
+                        control_payload = payload.strip()
+                        if not control_payload:
                             continue
 
-                        if payload == "[DONE]":
+                        if control_payload == "[DONE]":
                             yield "data: [DONE]\n\n"
                             done_sent = True
                             break
 
-                        if payload.startswith("[ERROR]"):
-                            yield f"data: {payload}\n\n"
+                        if control_payload.startswith("[ERROR]"):
+                            yield f"data: {control_payload}\n\n"
                             return
 
-                        if payload.startswith("[WARNING]"):
-                            yield f"data: {payload}\n\n"
+                        if control_payload.startswith("[WARNING]"):
+                            yield f"data: {control_payload}\n\n"
                             continue
 
                         content = _decode_stream_payload(payload, full_response)
@@ -522,21 +519,21 @@ async def stream_chat(
                 if sse_buffer and not done_sent:
                     payloads, _ = _iter_sse_payloads(sse_buffer + "\n\n")
                     for payload in payloads:
-                        payload = payload.strip()
-                        if not payload:
+                        control_payload = payload.strip()
+                        if not control_payload:
                             continue
 
-                        if payload == "[DONE]":
+                        if control_payload == "[DONE]":
                             yield "data: [DONE]\n\n"
                             done_sent = True
                             break
 
-                        if payload.startswith("[ERROR]"):
-                            yield f"data: {payload}\n\n"
+                        if control_payload.startswith("[ERROR]"):
+                            yield f"data: {control_payload}\n\n"
                             return
 
-                        if payload.startswith("[WARNING]"):
-                            yield f"data: {payload}\n\n"
+                        if control_payload.startswith("[WARNING]"):
+                            yield f"data: {control_payload}\n\n"
                             continue
 
                         content = _decode_stream_payload(payload, full_response)
